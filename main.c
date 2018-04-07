@@ -158,6 +158,7 @@ int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock) {
 
 void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock) {
     int amountToSell = ((*stock)->totalGrain * getRandomNumber(100)) / 100;
+    (*stock)->totalGrain -= amountToSell;
 
     sellFifo(profitFifo, amountToSell, stock);
 
@@ -183,6 +184,9 @@ void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
             (*stock)->leftoverGrainAmount = ration - amountToSell;
             (*stock)->leftoverGrainAmount = price;
             amountToSell = 0;
+
+            deQueue((*stock)->grainAmountQueue, &errorCodeAmount);
+            deQueue((*stock)->grainPriceQueue, &errorCodePrice);
         }
     }
 }
