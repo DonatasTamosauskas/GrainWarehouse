@@ -30,34 +30,38 @@ const int MAX_DEVIATION_GRAIN_PRICE = 5;
 const int MARKUP = 10;
 const int randomSeed = 10;
 
+struct Storage {
+    StackType *grainAmountStack, *grainPriceStack;
+    tQueue *grainAmountQueue, *grainPriceQueue;
+};
+
 void createDataStructure(StackType **grainStack, tQueue **grainQueue);
 
 void setupRandomSeed(int seed);
 
-void worldLoop(int days, tQueue **grainAmountQueue, tQueue **grainPriceQueue, StackType **grainAmountStack,
-               StackType **grainPriceStack);
+void createQueues(struct Storage **stock);
+
+void createStacks(struct Storage **stock);
 
 int getRandomNumber(int range);
 
+void worldLoop(int days, struct Storage **stock);
+
 void buyGrains(int *tonnesOfGrain, int *pricePerTonne);
 
-void createQueues(tQueue **grainAmount, tQueue **grainPrice);
-
-void createStacks(StackType **grainAmount, StackType **grainPrice);
-
-int storeGrains(int tonnesOfGrain, int pricePerTonne, tQueue **grainAmountQueue, tQueue **grainPriceQueue,
-                StackType **grainAmountStack,
-                StackType **grainPriceStack);
+int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock);
 
 int main() {
 
     int input, simulateDays;
-    StackType *grainAmountStack, *grainPriceStack;
-    tQueue *grainAmountQueue, *grainPriceQueue;
+    struct Storage *stock = (struct Storage *) malloc(sizeof(struct Storage));
+
+//    StackType *grainAmountStack, *grainPriceStack;
+//    tQueue *grainAmountQueue, *grainPriceQueue;
 
     setupRandomSeed(randomSeed);
-    createQueues(&grainAmountQueue, &grainPriceQueue);
-    createStacks(&grainAmountStack, &grainPriceStack);
+    createQueues(&stock);
+    createStacks(&stock);
 
     // queue works
 //        enQueue(grainQueue, 5, NULL);
@@ -76,21 +80,21 @@ int main() {
     printf("1. How many days should the simulation run.\n");
     scanf("%d", &simulateDays);
 
-    worldLoop(simulateDays, &grainAmountQueue, &grainPriceQueue, &grainAmountStack, &grainPriceStack);
+    worldLoop(simulateDays, &stock);
 
 
 }
 
-void createStacks(StackType **grainAmount, StackType **grainPrice) {
-    stack_create(grainAmount);
-    stack_create(grainPrice);
-}
-
-void createQueues(tQueue **grainAmount, tQueue **grainPrice) {
+void createQueues(struct Storage **stock) {
     int error = 0;
 
-    (*grainAmount) = createQueue(&error);
-    (*grainPrice) = createQueue(&error);
+    (*stock)->grainAmountQueue = createQueue(&error);
+    (*stock)->grainPriceQueue = createQueue(&error);
+}
+
+void createStacks(struct Storage **stock) {
+    stack_create(&((*stock)->grainAmountStack));
+    stack_create(&((*stock)->grainPriceStack));
 }
 
 void setupRandomSeed(int seed) {
@@ -101,8 +105,7 @@ int getRandomNumber(int range) {
     return rand() % range;
 }
 
-void worldLoop(int days, tQueue **grainAmountQueue, tQueue **grainPriceQueue, StackType **grainAmountStack,
-               StackType **grainPriceStack) {
+void worldLoop(int days, struct Storage **stock) {
 
     for (int i = 0; i < days; i++) {
         /* buy (daily grain norm +- deviation, at daily cost +- deviation)
@@ -114,7 +117,7 @@ void worldLoop(int days, tQueue **grainAmountQueue, tQueue **grainPriceQueue, St
 
         buyGrains(&tonnesOfGrain, &pricePerTonne);
 //        printf("Tonnes: %d, at a price: %d\n", tonnesOfGrain, pricePerTonne);
-        storeGrains(tonnesOfGrain, pricePerTonne, grainAmountQueue, grainPriceQueue, grainAmountStack, grainPriceStack);
+        storeGrains(tonnesOfGrain, pricePerTonne, stock);
     }
 }
 
@@ -129,15 +132,13 @@ void buyGrains(int *tonnesOfGrain, int *pricePerTonne) {
     (*pricePerTonne) = PRICE_FOR_TONNE + grainPriceDeviation;
 }
 
-int storeGrains(int tonnesOfGrain, int pricePerTonne, tQueue **grainAmountQueue, tQueue **grainPriceQueue,
-                StackType **grainAmountStack,
-                StackType **grainPriceStack) {
+int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock) {
 
     int errorCodeForQueue = 0;
 
-    enQueue((*grainAmountQueue), tonnesOfGrain, &errorCodeForQueue);
-    enQueue((*grainPriceQueue), pricePerTonne, &errorCodeForQueue);
+    enQueue((*stock)->grainAmountQueue, tonnesOfGrain, &errorCodeForQueue);
+    enQueue((*stock)->grainPriceQueue, pricePerTonne, &errorCodeForQueue);
 
-    stack_push((*grainAmountStack), tonnesOfGrain);
-    stack_push((*grainPriceStack), pricePerTonne);
+    stack_push((*stock)->grainAmountStack, tonnesOfGrain);
+    stack_push((*stock)->grainPriceStack, pricePerTonne);
 }
