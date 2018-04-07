@@ -33,9 +33,10 @@ const int randomSeed = 10;
 struct Storage {
     StackType *grainAmountStack, *grainPriceStack;
     tQueue *grainAmountQueue, *grainPriceQueue;
+    int totalGrain;
+    int leftoverGrainAmount;
+    int leftoverGrainPrice;
 };
-
-void createDataStructure(StackType **grainStack, tQueue **grainQueue);
 
 void setupRandomSeed(int seed);
 
@@ -51,13 +52,14 @@ void buyGrains(int *tonnesOfGrain, int *pricePerTonne);
 
 int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock);
 
+void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock);
+
+void sellFifo(int *profit, int amountToSell, struct Storage **stock);
+
 int main() {
 
     int input, simulateDays;
     struct Storage *stock = (struct Storage *) malloc(sizeof(struct Storage));
-
-//    StackType *grainAmountStack, *grainPriceStack;
-//    tQueue *grainAmountQueue, *grainPriceQueue;
 
     setupRandomSeed(randomSeed);
     createQueues(&stock);
@@ -82,7 +84,6 @@ int main() {
 
     worldLoop(simulateDays, &stock);
 
-
 }
 
 void createQueues(struct Storage **stock) {
@@ -102,22 +103,30 @@ void setupRandomSeed(int seed) {
 }
 
 int getRandomNumber(int range) {
-    return rand() % range;
+    return rand() % (range + 1);
 }
 
+
+/* buy (daily grain norm +- deviation, at daily cost +- deviation)
+ * store (the amount that was bought)
+ * sell (0-100% of the whole stock randomly)
+ */
 void worldLoop(int days, struct Storage **stock) {
+    int tonnesOfGrain;
+    int pricePerTonne;
+    int profitFifo = 0;
+    int profitLifo = 0;
+
+    (*stock)->totalGrain = 0;
+    (*stock)->leftoverGrainAmount = 0;
+    (*stock)->leftoverGrainPrice = 0;
 
     for (int i = 0; i < days; i++) {
-        /* buy (daily grain norm +- deviation, at daily cost +- deviation)
-         * store (the amount that was bought)
-         * sell (0-100% of the whole stock randomly)
-         */
-        int tonnesOfGrain;
-        int pricePerTonne;
-
         buyGrains(&tonnesOfGrain, &pricePerTonne);
-//        printf("Tonnes: %d, at a price: %d\n", tonnesOfGrain, pricePerTonne);
         storeGrains(tonnesOfGrain, pricePerTonne, stock);
+        sellGrains(&profitFifo, &profitLifo, stock);
+
+        printf("Total profit of FIFO: %d\n", profitFifo);
     }
 }
 
@@ -141,4 +150,73 @@ int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock) {
 
     stack_push((*stock)->grainAmountStack, tonnesOfGrain);
     stack_push((*stock)->grainPriceStack, pricePerTonne);
+
+    (*stock)->totalGrain += tonnesOfGrain;
+
+    return errorCodeForQueue;
 }
+
+void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock) {
+    int amountToSell = ((*stock)->totalGrain * getRandomNumber(100)) / 100;
+
+    sellFifo(profitFifo, amountToSell, stock);
+
+}
+
+void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
+    int errorCodeAmount = 0;
+    int errorCodePrice = 0;
+
+    while (amountToSell > 0) {
+        int ration = getData((*stock)->grainAmountQueue, &errorCodeAmount);
+        int price = getData((*stock)->grainPriceQueue, &errorCodePrice);
+
+        if (ration <= amountToSell) {
+            amountToSell -= ration;
+            (*profit) += ration * price;
+
+            deQueue((*stock)->grainAmountQueue, &errorCodeAmount);
+            deQueue((*stock)->grainPriceQueue, &errorCodePrice);
+
+        } else {
+            (*profit) += amountToSell * price;
+            (*stock)->leftoverGrainAmount = ration - amountToSell;
+            (*stock)->leftoverGrainAmount = price;
+            amountToSell = 0;
+        }
+    }
+}
+
+void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock) {
+    int leftoverAmount = (*stock)->leftoverGrainAmount;
+    int leftoverPrice = (*stock)->leftoverGrainPrice;
+
+    if (leftoverAmount != 0) {
+        if ((*amountToSell) >= leftoverAmount) {
+
+            (*amountToSell) -= leftoverAmount;
+            (*profit) += leftoverAmount * leftoverPrice;
+            (*stock)->leftoverGrainAmount = 0;
+
+        } else {
+            (*amountToSell) = 0;
+            (*profit) += (*amountToSell) * leftoverPrice;
+            (*stock)->leftoverGrainAmount = leftoverAmount - (*amountToSell);
+        }
+    }
+}
+
+void sellLifo() {
+
+}
+
+
+/*
+ * 1) FIFO supirkimo:
+    pirmiausia parduodami seniausiai įsigyti grūdai, apskaitinė grūdų kaina lygi supirkimo kainai;
+ 2) LIFO svertinių vidurkių:
+    pirmiausia parduodami šviežiausi grūdai; apskaitinė gautų grūdų kaina nustatoma kaip tuo metu
+    sandėlyje turimų grūdų kainų svertinis vidurkis (pvz., jei sandėlyje turėjome 200 t grūdų, kurių
+    apskaitinė kaina 95 LT/t ir įsigijome dar 100 t po 110 LT/t, tai įsigytų grūdų apskaitinė kaina yra 100
+    LT/t = (200 * 95 + 100 * 110) / (200 + 100)).
+ */
