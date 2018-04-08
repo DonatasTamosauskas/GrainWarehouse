@@ -56,6 +56,8 @@ void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock);
 
 void sellFifo(int *profit, int amountToSell, struct Storage **stock);
 
+void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock);
+
 int main() {
 
     int input, simulateDays;
@@ -64,12 +66,6 @@ int main() {
     setupRandomSeed(randomSeed);
     createQueues(&stock);
     createStacks(&stock);
-
-    // queue works
-//        enQueue(grainQueue, 5, NULL);
-//        enQueue(grainQueue, 6, NULL);
-//        enQueue(grainQueue, 7, NULL);
-//        printf("%d", getData(grainQueue, NULL));
 
     // stack works
 //    stack_push(grainStack, 5);
@@ -126,7 +122,7 @@ void worldLoop(int days, struct Storage **stock) {
         storeGrains(tonnesOfGrain, pricePerTonne, stock);
         sellGrains(&profitFifo, &profitLifo, stock);
 
-        printf("Total profit of FIFO: %d\n", profitFifo);
+        printf("Total profit of FIFO: %d. Bought %d, at %d.\n", profitFifo, tonnesOfGrain, pricePerTonne);
     }
 }
 
@@ -157,7 +153,8 @@ int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock) {
 }
 
 void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock) {
-    int amountToSell = ((*stock)->totalGrain * getRandomNumber(100)) / 100;
+    int amountToSell = getRandomNumber((*stock)->totalGrain);
+    printf("Sold: %d. ", amountToSell);
     (*stock)->totalGrain -= amountToSell;
 
     sellFifo(profitFifo, amountToSell, stock);
@@ -167,6 +164,8 @@ void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock) {
 void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
     int errorCodeAmount = 0;
     int errorCodePrice = 0;
+
+    sellLeftoverGrain(profit, &amountToSell, stock);
 
     while (amountToSell > 0) {
         int ration = getData((*stock)->grainAmountQueue, &errorCodeAmount);
@@ -182,7 +181,7 @@ void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
         } else {
             (*profit) += amountToSell * price;
             (*stock)->leftoverGrainAmount = ration - amountToSell;
-            (*stock)->leftoverGrainAmount = price;
+            (*stock)->leftoverGrainPrice = price;
             amountToSell = 0;
 
             deQueue((*stock)->grainAmountQueue, &errorCodeAmount);
@@ -203,9 +202,10 @@ void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock) {
             (*stock)->leftoverGrainAmount = 0;
 
         } else {
-            (*amountToSell) = 0;
+
             (*profit) += (*amountToSell) * leftoverPrice;
             (*stock)->leftoverGrainAmount = leftoverAmount - (*amountToSell);
+            (*amountToSell) = 0;
         }
     }
 }
