@@ -34,6 +34,7 @@ struct Storage {
     StackType *grainAmountStack, *grainPriceStack;
     tQueue *grainAmountQueue, *grainPriceQueue;
     int totalGrain;
+    int totalPrice;
     int leftoverGrainAmount;
     int leftoverGrainPrice;
 };
@@ -56,7 +57,13 @@ void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock);
 
 void sellFifo(int *profit, int amountToSell, struct Storage **stock);
 
-void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock);
+void sellLeftoverGrainFifo(int *profit, int *amountToSell, struct Storage **stock);
+
+void sellLifo(int *profit, int amountToSell, struct Storage **stock);
+
+int calculateAverageGrainPrice(int ration, int price, struct Storage **stock);
+
+void printResults(int profitFifo, int profitLifo);
 
 int main() {
 
@@ -66,14 +73,6 @@ int main() {
     setupRandomSeed(randomSeed);
     createQueues(&stock);
     createStacks(&stock);
-
-    // stack works
-//    stack_push(grainStack, 5);
-//    stack_push(grainStack, 6);
-//    stack_push(grainStack, 7);
-//    int n = 0;
-//    stack_pop(grainStack, &n);
-//    printf("%d", n);
 
     printf("1. How many days should the simulation run.\n");
     scanf("%d", &simulateDays);
@@ -114,6 +113,7 @@ void worldLoop(int days, struct Storage **stock) {
     int profitLifo = 0;
 
     (*stock)->totalGrain = 0;
+    (*stock)->totalPrice = 0;
     (*stock)->leftoverGrainAmount = 0;
     (*stock)->leftoverGrainPrice = 0;
 
@@ -121,9 +121,9 @@ void worldLoop(int days, struct Storage **stock) {
         buyGrains(&tonnesOfGrain, &pricePerTonne);
         storeGrains(tonnesOfGrain, pricePerTonne, stock);
         sellGrains(&profitFifo, &profitLifo, stock);
-
-        printf("Total profit of FIFO: %d. Bought %d, at %d.\n", profitFifo, tonnesOfGrain, pricePerTonne);
     }
+
+    printResults(profitFifo, profitLifo);
 }
 
 void buyGrains(int *tonnesOfGrain, int *pricePerTonne) {
@@ -148,24 +148,27 @@ int storeGrains(int tonnesOfGrain, int pricePerTonne, struct Storage **stock) {
     stack_push((*stock)->grainPriceStack, pricePerTonne);
 
     (*stock)->totalGrain += tonnesOfGrain;
+    (*stock)->totalPrice += tonnesOfGrain * pricePerTonne;
+
 
     return errorCodeForQueue;
 }
 
 void sellGrains(int *profitFifo, int *profitLifo, struct Storage **stock) {
     int amountToSell = getRandomNumber((*stock)->totalGrain);
-    printf("Sold: %d. ", amountToSell);
-    (*stock)->totalGrain -= amountToSell;
+//    printf("Sold: %d. ", amountToSell);
 
     sellFifo(profitFifo, amountToSell, stock);
+    sellLifo(profitLifo, amountToSell, stock);
 
+//    (*stock)->totalGrain -= amountToSell;
 }
 
 void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
     int errorCodeAmount = 0;
     int errorCodePrice = 0;
 
-    sellLeftoverGrain(profit, &amountToSell, stock);
+    sellLeftoverGrainFifo(profit, &amountToSell, stock);
 
     while (amountToSell > 0) {
         int ration = getData((*stock)->grainAmountQueue, &errorCodeAmount);
@@ -190,7 +193,7 @@ void sellFifo(int *profit, int amountToSell, struct Storage **stock) {
     }
 }
 
-void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock) {
+void sellLeftoverGrainFifo(int *profit, int *amountToSell, struct Storage **stock) {
     int leftoverAmount = (*stock)->leftoverGrainAmount;
     int leftoverPrice = (*stock)->leftoverGrainPrice;
 
@@ -210,8 +213,48 @@ void sellLeftoverGrain(int *profit, int *amountToSell, struct Storage **stock) {
     }
 }
 
-void sellLifo() {
+void sellLifo(int *profit, int amountToSell, struct Storage **stock) {
+    int ration;
+    int price;
+    int averagePrice;
 
+    while (amountToSell > 0) {
+        stack_pop((*stock)->grainAmountStack, &ration);
+        stack_pop((*stock)->grainPriceStack, &price);
+        averagePrice = calculateAverageGrainPrice(ration, price, stock);
+
+        if (ration <= amountToSell) {
+            amountToSell -= ration;
+            (*profit) += ration * averagePrice;
+
+        } else {
+            (*profit) += amountToSell * averagePrice;
+            int leftoverGrainAmount = ration - amountToSell;
+            int leftoverGrainPrice = price;
+            amountToSell = 0;
+
+            stack_push((*stock)->grainAmountStack, leftoverGrainAmount);
+            stack_push((*stock)->grainPriceStack, leftoverGrainPrice);
+
+            (*stock)->totalGrain += leftoverGrainAmount;
+            (*stock)->totalPrice += leftoverGrainAmount * leftoverGrainPrice;
+        }
+    }
+
+}
+
+int calculateAverageGrainPrice(int ration, int price, struct Storage **stock) {
+    int averagePrice = (*stock)->totalPrice / (*stock)->totalGrain;
+
+    (*stock)->totalPrice -= ration * price;
+    (*stock)->totalGrain -= ration;
+
+    return averagePrice;
+}
+
+void printResults(int profitFifo, int profitLifo) {
+    printf("Total profit of FIFO: %d.\n", (profitFifo * MARKUP) / 100);
+    printf("Total profit of LIFO: %d.\n", (profitLifo * MARKUP) / 100);
 }
 
 
